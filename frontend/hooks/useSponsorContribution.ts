@@ -75,7 +75,6 @@ export function useSponsorContribution(eventId: string) {
             : 'Test SDF Network ; September 2015';
 
         const signedXdr = await signTransaction(xdr, {
-          network: network === NetworkType.MAINNET ? 'PUBLIC' : 'TESTNET',
           networkPassphrase,
           accountToSign: publicKey,
         });

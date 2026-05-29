@@ -21,7 +21,12 @@ export function NetworkMismatchBanner() {
     }
     let cancelled = false;
     getNetwork()
-      .then((n) => { if (!cancelled) setFreighterNetwork(n); })
+      .then((result) => {
+        if (cancelled) return;
+        // freighter-api v6 returns { network, networkPassphrase } | { error }
+        const net = typeof result === 'string' ? result : (result as { network?: string }).network ?? null;
+        setFreighterNetwork(net);
+      })
       .catch(() => { if (!cancelled) setFreighterNetwork(null); });
     return () => { cancelled = true; };
   }, [isConnected, network]);

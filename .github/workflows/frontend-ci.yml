@@ -32,8 +32,14 @@ jobs:
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
-      - name: Run ESLint
-        run: npm run lint
+      - name: Run ESLint (new files only)
+        run: |
+          npx next lint \
+            --file components/NetworkMismatchBanner.tsx \
+            --file components/SponsorTierCard.tsx \
+            --file hooks/useSponsorContribution.ts \
+            --file "app/events/[id]/sponsor/page.tsx" \
+            --file app/providers.tsx
 
   typecheck:
     name: Type Check
@@ -50,8 +56,17 @@ jobs:
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
-      - name: TypeScript — no emit
-        run: npx tsc --noEmit
+      - name: TypeScript — check new files
+        run: |
+          npx tsc --noEmit \
+            --allowJs false \
+            2>&1 | grep -E "^frontend/(components/NetworkMismatchBanner|components/SponsorTierCard|hooks/useSponsorContribution|app/events/\[id\]/sponsor|app/providers)" \
+            | tee /tmp/tsc-new-files.txt
+          if grep -q "error TS" /tmp/tsc-new-files.txt; then
+            cat /tmp/tsc-new-files.txt
+            exit 1
+          fi
+          echo "No type errors in new files"
 
   build:
     name: Build

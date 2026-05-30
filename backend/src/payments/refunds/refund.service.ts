@@ -16,6 +16,7 @@ import { AuditService } from '../../audit/audit.service';
 import { EscrowService } from '../services/escrow.service';
 import { NotificationService } from '../../notifications/notification.service';
 import { RefundResultDto } from './dto/refund-result.dto';
+import { RefundCalculatorService } from './refund-calculator.service';
 import { paginate } from '../../common/pagination/pagination.helper';
 import { PaginationDto } from '../../common/pagination/dto/pagination.dto';
 
@@ -43,6 +44,7 @@ export class RefundService {
     private readonly auditService: AuditService,
     private readonly escrowService: EscrowService,
     private readonly notificationService: NotificationService,
+    private readonly refundCalculator: RefundCalculatorService,
   ) {}
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -126,6 +128,49 @@ export class RefundService {
       },
     });
 
+    // 5. If all refunds succeeded and the escrow has not been merged yet,
+    //    merge the escrow account to sweep residual XLM to the platform wallet.
+    const allSucceeded =
+      results.length > 0 && results.every((r) => r.success);
+
+    if (allSucceeded && event.escrowSecretEncrypted) {
+      try {
+        const platformPublicKey =
+          process.env.PLATFORM_PUBLIC_KEY ?? '';
+
+        if (platformPublicKey) {
+          await this.stellarService.mergeAccount(
+            escrowSecret,
+            platformPublicKey,
+          );
+
+          // Null out escrow credentials and record the merge timestamp
+          await this.eventsRepository.update(eventId, {
+            escrowPublicKey: null,
+            escrowSecretEncrypted: null,
+            mergedAt: new Date(),
+          });
+
+          this.logger.log(
+            `Escrow account merged for event=${eventId} → ${platformPublicKey}`,
+          );
+        } else {
+          this.logger.warn(
+            `PLATFORM_PUBLIC_KEY not set — skipping escrow merge for event=${eventId}`,
+          );
+        }
+      } catch (mergeErr: unknown) {
+        const reason =
+          mergeErr instanceof Error
+            ? mergeErr.message
+            : 'Unknown error during escrow merge';
+        this.logger.error(
+          `Escrow merge failed for event=${eventId}: ${reason}`,
+        );
+        // Non-fatal: refunds already succeeded, just log the failure
+      }
+    }
+
     return results;
   }
 
@@ -178,22 +223,30 @@ export class RefundService {
           reason: `Too close to event start`,
           refundAmount: 0,
         };
+    // Check cutoff: no refund if event starts within REFUND_CUTOFF_HOURS
+    const event = await this.eventsRepository.findOne({
+      where: { id: payment.eventId },
+      select: ['id', 'startDate'],
+    });
+
+    if (event?.startDate) {
+      const hoursToEvent = (new Date(event.startDate).getTime() - Date.now()) / 3_600_000;
+      const proximityResult = this.refundCalculator.calculateRefundByEventProximity(
+        hoursToEvent,
+        Number(payment.amount),
+      );
+      if (!proximityResult.eligible) {
+        return proximityResult;
       }
     }
 
     const hoursSincePurchase =
       (Date.now() - payment.createdAt.getTime()) / (1000 * 60 * 60);
-    const FULL_REFUND_WINDOW_HOURS = Number(
-      process.env.FULL_REFUND_WINDOW_HOURS ?? 48,
+
+    return this.refundCalculator.calculateRefundAmount(
+      hoursSincePurchase,
+      Number(payment.amount),
     );
-    const PARTIAL_REFUND_RATE = Number(process.env.PARTIAL_REFUND_RATE ?? 0.5);
-
-    const refundAmount =
-      hoursSincePurchase <= FULL_REFUND_WINDOW_HOURS
-        ? Number(payment.amount)
-        : Number(payment.amount) * PARTIAL_REFUND_RATE;
-
-    return { eligible: true, refundAmount };
   }
 
   // ─────────────────────────────────────────────────────────────────────────

@@ -22,6 +22,8 @@ import { StellarService } from '../stellar/stellar.service';
 import { User } from '../users/entities/user.entity';
 import { ConfirmPaymentDto } from './dto/confirm-payment.dto';
 import { EscrowService } from './services/escrow.service';
+import { Payment, PaymentStatus } from './entities/payment.entity';
+import { WebhooksService } from '../webhooks/webhooks.service';
 
 @Injectable()
 export class PaymentsService {
@@ -42,6 +44,8 @@ export class PaymentsService {
     private readonly notificationService: NotificationService,
     private readonly currenciesService: CurrenciesService,
     private readonly escrowService: EscrowService,
+    private readonly webhooksService: WebhooksService,
+    
   ) {}
 
   async getPaymentById(id: string): Promise<Payment> {
@@ -375,6 +379,8 @@ export class PaymentsService {
       },
     });
 
+    this.webhooksService.queueDelivery(event, confirmed).catch(() => undefined);
+
     return confirmed;
   }
 
@@ -439,7 +445,7 @@ export class PaymentsService {
 
   private async markFailed(payment: Payment, reason: string): Promise<void> {
     payment.status = PaymentStatus.FAILED;
-    await this.paymentsRepository.save(payment);
+    const saved = await this.paymentsRepository.save(payment);
 
     await this.auditService.log({
       action: AuditAction.PAYMENT_FAILED,
@@ -460,6 +466,16 @@ export class PaymentsService {
           reason,
         });
       }
+      const event = await this.eventsService.getEventById(payment.eventId);
+      await this.notificationService.queuePaymentFailedEmail({
+        userId: payment.userId,
+        email: '',
+        eventTitle: event.title,
+        amount: Number(payment.amount),
+        currency: payment.currency,
+        reason,
+      });
+      this.webhooksService.queueDelivery(event, saved).catch(() => undefined);
     } catch (error) {
       console.error(
         `Failed to queue payment failure email for ${payment.id}:`,

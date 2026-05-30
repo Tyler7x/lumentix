@@ -15,6 +15,7 @@ import { Payment } from '../payments/entities/payment.entity';
 import { SponsorContribution } from '../sponsors/entities/sponsor-contribution.entity';
 import { RefundModule } from '../payments/refunds/refund.module';
 import { EventImage } from './entities/event-image.entity';
+import { WebhooksModule } from '../webhooks/webhooks.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { EventImage } from './entities/event-image.entity';
     EscrowModule,
     AuditModule,
     forwardRef(() => RefundModule),
+    WebhooksModule,
   ],
   controllers: [EventsController],
   providers: [EventsService, EventStateService],

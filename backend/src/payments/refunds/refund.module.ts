@@ -10,6 +10,7 @@ import { AuditModule } from '../../audit/audit.module';
 import { EscrowModule } from '../escrow.module';
 import { NotificationModule } from '../../notifications/notification.module';
 import { RefundService } from './refund.service';
+import { RefundCalculatorService } from './refund-calculator.service';
 import { RefundController } from './refund.controller';
 
 @Module({
@@ -20,7 +21,7 @@ import { RefundController } from './refund.controller';
     EscrowModule,
     NotificationModule,
   ],
-  providers: [RefundService],
+  providers: [RefundService, RefundCalculatorService],
   controllers: [RefundController],
   exports: [RefundService],
 })

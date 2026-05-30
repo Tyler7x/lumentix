@@ -381,6 +381,41 @@ export class StellarService implements OnModuleDestroy {
   }
 
   /**
+   * Merge an escrow account into a destination account.
+   * Sends all remaining XLM balance to `destinationPublicKey` and permanently
+   * closes the escrow account. Should be called after all refunds succeed.
+   *
+   * @param escrowSecret          Decrypted secret key of the escrow account
+   * @param destinationPublicKey  Platform (or organizer) account to receive residual XLM
+   */
+  async mergeAccount(
+    escrowSecret: string,
+    destinationPublicKey: string,
+  ): Promise<Horizon.HorizonApi.SubmitTransactionResponse> {
+    this.logger.debug(
+      `mergeAccount: destination=${destinationPublicKey}`,
+    );
+
+    const escrowKeypair = Keypair.fromSecret(escrowSecret);
+    const escrowAccount = await this.server.loadAccount(
+      escrowKeypair.publicKey(),
+    );
+
+    const tx = new TransactionBuilder(escrowAccount, {
+      fee: BASE_FEE,
+      networkPassphrase: this.networkPassphrase,
+    })
+      .addOperation(
+        Operation.accountMerge({ destination: destinationPublicKey }),
+      )
+      .setTimeout(30)
+      .build();
+
+    tx.sign(escrowKeypair);
+    return this.server.submitTransaction(tx);
+  }
+
+  /**
    * Get the XLM balance of an account.
    */
   async getXlmBalance(publicKey: string): Promise<string> {
@@ -460,6 +495,27 @@ export class StellarService implements OnModuleDestroy {
         minimumRequired.toFixed(7),
       );
     }
+
+  /**
+   * Transfer a ticket asset to a new owner on the Stellar network.
+   *
+   * NOTE: A full on-chain implementation requires the platform to control
+   * the issuing account, set up trustlines on both the sender and recipient
+   * accounts, and submit a payment operation. The stub below logs the intent
+   * and returns successfully so the DB transfer proceeds.
+   *
+   * TODO: Implement the full changeTrust + payment flow once the platform
+   *       Stellar asset issuance model is finalised.
+   */
+  async transferTicketAsset(
+    ticket: { id: string; assetCode: string; ownerId: string },
+    recipientPublicKey: string,
+  ): Promise<void> {
+    this.logger.log(
+      `transferTicketAsset: ticket=${ticket.id} asset=${ticket.assetCode} ` +
+        `from ownerId=${ticket.ownerId} to recipientPublicKey=${recipientPublicKey}`,
+    );
+    // Stub — full on-chain transfer deferred pending asset issuance model design.
   }
 
   onModuleDestroy(): void {

@@ -16,10 +16,14 @@ import { AuditModule } from '../audit/audit.module';
 import { NotificationModule } from '../notifications/notification.module';
 import { EscrowModule } from './escrow.module';
 import { RefundModule } from './refunds/refund.module';
-
+import { WebhooksModule } from '../webhooks/webhooks.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([Payment, EventSeries, Event, TicketEntity, User]),
+    TypeOrmModule.forFeature([Payment]),
+
+
+    TypeOrmModule.forFeature([Payment, User]),
     ScheduleModule,
     CurrenciesModule,
     EventsModule,
@@ -28,6 +32,7 @@ import { RefundModule } from './refunds/refund.module';
     NotificationModule,
     EscrowModule,
     forwardRef(() => RefundModule),
+    WebhooksModule,
   ],
   controllers: [PaymentsController, PaymentAnalyticsController],
   providers: [

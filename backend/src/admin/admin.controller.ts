@@ -33,6 +33,7 @@ import { RoleRequestStatus } from '../users/entities/role-request.entity';
 import { UserRole } from '../users/enums/user-role.enum';
 import { StellarService } from '../stellar/stellar.service';
 import { StellarWebhookService } from '../stellar/stellar-webhook.service';
+import { RejectRoleRequestDto } from './dto/reject-role-request.dto';
 
 @ApiTags('Admin')
 @ApiBearerAuth()
@@ -163,8 +164,13 @@ export class AdminController {
 
   @Patch('role-requests/:id/reject')
   @ApiOperation({ summary: 'Reject role request' })
-  rejectRoleRequest(@Param('id', ParseUUIDPipe) id: string) {
-    return this.adminService.rejectRoleRequest(id);
+  @ApiResponse({ status: 200, description: 'Role request rejected' })
+  @ApiResponse({ status: 409, description: 'Request already processed' })
+  rejectRoleRequest(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: RejectRoleRequestDto,
+  ) {
+    return this.adminService.rejectRoleRequest(id, dto.reason);
   }
 
   // ── Stellar ───────────────────────────────────────────────────────────────

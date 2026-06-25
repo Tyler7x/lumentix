@@ -5,6 +5,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   Index,
+  Unique,
 } from 'typeorm';
 
 export enum PaymentStatus {
@@ -15,7 +16,8 @@ export enum PaymentStatus {
 }
 
 @Index(['userId', 'status'])
-@Index(['eventId', 'status']) // NEW
+@Index(['eventId', 'status'])
+@Unique(['transactionHash'])
 @Entity('payments')
 export class Payment {
   @PrimaryGeneratedColumn('uuid')
